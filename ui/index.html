@@ -1,0 +1,649 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CostPilot</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --card: #fff;
+      --fg: #1f2933;
+      --muted: #616e7c;
+      --line: #d9e2ec;
+      --accent: #0b6bcb;
+      --accent-fg: #fff;
+      --ok: #0a7d3b;
+      --err: #b42318;
+      --console: #0f172a;
+      --console-fg: #cbd5e1;
+      --soft: #eef2f7;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #0b1220;
+        --card: #111a2b;
+        --fg: #e5e7eb;
+        --muted: #94a3b8;
+        --line: #243047;
+        --accent: #4c9aff;
+        --accent-fg: #06101f;
+        --ok: #4ade80;
+        --err: #f87171;
+        --console: #060b14;
+        --console-fg: #cbd5e1;
+        --soft: #16213a;
+      }
+    }
+
+    :root[data-theme="dark"] {
+      --bg: #0b1220;
+      --card: #111a2b;
+      --fg: #e5e7eb;
+      --muted: #94a3b8;
+      --line: #243047;
+      --accent: #4c9aff;
+      --accent-fg: #06101f;
+      --ok: #4ade80;
+      --err: #f87171;
+      --console: #060b14;
+      --console-fg: #cbd5e1;
+      --soft: #16213a;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+
+    header {
+      background: var(--card);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .bar {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .brand {
+      font-weight: 700;
+      font-size: 1.15rem;
+      letter-spacing: .2px;
+    }
+
+    .brand span {
+      color: var(--accent);
+    }
+
+    .tag {
+      color: var(--muted);
+      font-size: .85rem;
+    }
+
+    nav {
+      margin-left: auto;
+      display: flex;
+      gap: 4px;
+    }
+
+    .tab {
+      border: 1px solid transparent;
+      background: none;
+      color: var(--muted);
+      padding: 7px 14px;
+      border-radius: 8px;
+      font: inherit;
+      cursor: pointer;
+    }
+
+    .tab[aria-selected="true"] {
+      background: var(--soft);
+      color: var(--fg);
+      border-color: var(--line);
+    }
+
+    .tab .pill {
+      font-size: .7rem;
+      margin-left: 6px;
+      padding: 1px 7px;
+      border-radius: 99px;
+      background: var(--soft);
+      color: var(--muted);
+      border: 1px solid var(--line);
+    }
+
+    main {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(300px, 380px) 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+
+    @media (max-width:1200px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .card h2 {
+      margin: 0 0 10px;
+      font-size: 1rem;
+    }
+
+    label.row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 0;
+      cursor: pointer;
+    }
+
+    .field {
+      width: 100%;
+      padding: 7px 9px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--bg);
+      color: var(--fg);
+      font: inherit;
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: .82rem;
+      margin: 4px 0 10px;
+    }
+
+    button.primary {
+      background: var(--accent);
+      color: var(--accent-fg);
+      border: 0;
+      padding: 9px 16px;
+      border-radius: 8px;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    button.primary:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+
+    .status {
+      display: inline-block;
+      margin-left: 10px;
+      font-size: .88rem;
+    }
+
+    .status.run {
+      color: var(--accent);
+    }
+
+    .status.done {
+      color: var(--ok);
+    }
+
+    .status.fail {
+      color: var(--err);
+    }
+
+    pre#log {
+      background: var(--console);
+      color: var(--console-fg);
+      padding: 12px;
+      border-radius: 8px;
+      height: 260px;
+      overflow: auto;
+      font: 12.5px/1.45 ui-monospace, Consolas, monospace;
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .reports a {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      margin-bottom: 6px;
+      color: var(--fg);
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .reports a:hover,
+    .reports a.on {
+      border-color: var(--accent);
+      background: var(--soft);
+    }
+
+    .reports small {
+      color: var(--muted);
+    }
+
+    iframe {
+      width: 100%;
+      height: 72vh;
+      min-height: 420px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .empty {
+      color: var(--muted);
+      padding: 8px 0;
+    }
+
+    .note {
+      font-size: .82rem;
+      color: var(--muted);
+      border-left: 3px solid var(--accent);
+      padding: 4px 10px;
+      margin-top: 12px;
+    }
+
+    .chatbar {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+
+    .chatbar select {
+      width: auto;
+      min-width: 180px;
+    }
+
+    .chatlog {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--bg);
+      padding: 12px;
+      height: 52vh;
+      min-height: 300px;
+      overflow-y: auto;
+    }
+
+    .bubble {
+      border: 1px solid var(--line);
+      background: var(--card);
+      border-radius: 10px;
+      padding: 8px 12px;
+      margin: 8px 0;
+      max-width: 88%;
+      overflow-x: auto;
+    }
+
+    .bubble.me {
+      margin-left: auto;
+      background: var(--accent);
+      color: var(--accent-fg);
+      border-color: var(--accent);
+      white-space: pre-wrap;
+    }
+
+    .bubble p {
+      margin: .4em 0;
+    }
+
+    .bubble table {
+      border-collapse: collapse;
+      font-size: .88rem;
+      margin: 6px 0;
+    }
+
+    .bubble th,
+    .bubble td {
+      border: 1px solid var(--line);
+      padding: 3px 8px;
+      text-align: left;
+    }
+
+    .bubble code {
+      background: var(--soft);
+      padding: 0 4px;
+      border-radius: 4px;
+      font-size: .88em;
+    }
+
+    .sys {
+      color: var(--muted);
+      font-size: .82rem;
+      margin: 6px 0;
+    }
+
+    .sys.err {
+      color: var(--err);
+    }
+
+    .chips {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin: 10px 0;
+    }
+
+    .chip {
+      border: 1px solid var(--line);
+      background: var(--soft);
+      color: var(--fg);
+      border-radius: 99px;
+      padding: 4px 12px;
+      font: inherit;
+      font-size: .85rem;
+      cursor: pointer;
+    }
+
+    .chip:hover {
+      border-color: var(--accent);
+    }
+
+    .chip:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+
+    #chat-form {
+      display: flex;
+      gap: 8px;
+    }
+
+    [hidden] {
+      display: none !important;
+    }
+
+    footer {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 0 16px 24px;
+      color: var(--muted);
+      font-size: .8rem;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <div class="bar">
+      <div class="brand">Cost<span>Pilot</span></div>
+      <div class="tag">AWS cost-optimization analysis for EC2, EBS, RDS, MSK and S3</div>
+      <nav role="tablist">
+        <button class="tab" role="tab" id="tab-analysis" aria-selected="true">Analysis</button>
+        <button class="tab" role="tab" id="tab-copilot" aria-selected="false">Copilot<span
+            class="pill">Read-only</span></button>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section id="view-analysis">
+      <div class="grid">
+        <div>
+          <div class="card">
+            <h2>Run an analysis</h2>
+            <div id="profiles" class="empty">Loading profiles&hellip;</div>
+            <div class="hint">Select one or more AWS profiles. Each is analyzed as its own account.</div>
+            <label for="regions"><b>Regions</b></label>
+            <input id="regions" class="field" value="auto" spellcheck="false">
+            <div class="hint"><code>auto</code> scans regions with at least $10 of in-scope spend in 60 days, or enter
+              e.g. <code>us-east-1,us-east-2</code>.</div>
+            <button id="run" class="primary" disabled>Run analysis</button><span id="status" class="status"></span>
+            <div class="note">Read-only. Resource IDs, bucket names, spend and metrics are sent to the model. Confirm
+              this is permitted under the AI Use Requirements.</div>
+          </div>
+          <div class="card">
+            <h2>Progress</h2>
+            <pre id="log" aria-live="polite">Nothing running.</pre>
+          </div>
+        </div>
+        <div>
+          <div class="card">
+            <h2>Reports</h2>
+            <div id="reports" class="reports">
+              <div class="empty">No reports yet.</div>
+            </div>
+          </div>
+          <div class="card" id="viewer-card" hidden>
+            <h2 id="viewer-title">Report</h2>
+            <iframe id="viewer" title="Report" sandbox></iframe>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-copilot" hidden>
+      <div class="card">
+        <h2>Copilot <span class="pill"
+            style="font-size:.7rem;padding:1px 7px;border-radius:99px;border:1px solid var(--line)">Read-only</span>
+        </h2>
+        <p class="hint">Ask questions about an account. Answers come from live read-only checks, and Copilot cannot
+          change anything in the account.</p>
+        <div class="chatbar">
+          <label for="chat-profile"><b>Account profile</b></label>
+          <select id="chat-profile" class="field"></select>
+          <button id="chat-new" class="primary" type="button">New chat</button>
+          <span id="chat-status" class="status"></span>
+        </div>
+        <div id="chat-log" class="chatlog" aria-live="polite">
+          <div class="sys">Pick a profile and ask a question, or use a suggestion below. The first message starts the
+            chat.</div>
+        </div>
+        <div class="chips" id="chips"></div>
+        <form id="chat-form" autocomplete="off">
+          <input id="chat-input" class="field" placeholder="Ask about your account&hellip;" maxlength="2000">
+          <button id="chat-send" class="primary" type="submit">Send</button>
+        </form>
+        <div class="note">Answers can take up to a minute while Copilot runs checks. Resource IDs, bucket names, spend
+          and metrics are sent to the model.</div>
+      </div>
+    </section>
+  </main>
+  <footer>CostPilot runs locally and only calls read-only AWS APIs. The page is served from your machine (127.0.0.1).
+  </footer>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    let runId = null, since = 0, timer = null;
+
+    // ---- tabs
+    function show(tab) {
+      const analysis = tab === "analysis";
+      $("view-analysis").hidden = !analysis; $("view-copilot").hidden = analysis;
+      $("tab-analysis").setAttribute("aria-selected", analysis);
+      $("tab-copilot").setAttribute("aria-selected", !analysis);
+    }
+    $("tab-analysis").onclick = () => show("analysis");
+    $("tab-copilot").onclick = () => show("copilot");
+
+    // ---- api helpers
+    async function api(path, opts) {
+      const r = await fetch(path, opts);
+      if (!r.ok) { let m = r.statusText; try { m = (await r.json()).detail || m; } catch (e) { } throw new Error(m); }
+      return r.json();
+    }
+    function setStatus(text, cls) { const s = $("status"); s.textContent = text; s.className = "status " + (cls || ""); }
+
+    // ---- profiles
+    async function loadProfiles() {
+      try {
+        const { profiles } = await api("/api/profiles");
+        const box = $("profiles"); box.className = ""; box.textContent = "";
+        if (!profiles.length) { box.className = "empty"; box.textContent = "No AWS profiles found in ~/.aws."; return; }
+        profiles.forEach((p, i) => {
+          const l = document.createElement("label"); l.className = "row";
+          const c = document.createElement("input"); c.type = "checkbox"; c.value = p; c.checked = profiles.length === 1 || p === "default";
+          c.onchange = updateRunButton;
+          l.append(c, document.createTextNode(" " + p)); box.append(l);
+        });
+        const sel = $("chat-profile"); sel.textContent = "";
+        profiles.forEach(p => { const o = document.createElement("option"); o.value = o.textContent = p; sel.append(o); });
+        if (profiles.includes("default")) sel.value = "default";
+        updateRunButton();
+      } catch (e) { $("profiles").textContent = "Could not load profiles: " + e.message; }
+    }
+    const selected = () => [...document.querySelectorAll("#profiles input:checked")].map(c => c.value);
+    function updateRunButton() { $("run").disabled = !!timer || selected().length === 0; }
+
+    // ---- run
+    $("run").onclick = async () => {
+      try {
+        const { id } = await api("/api/runs", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ profiles: selected(), regions: $("regions").value.trim() || "auto" })
+        });
+        runId = id; since = 0; $("log").textContent = ""; setStatus("Running…", "run");
+        timer = setInterval(poll, 1500); updateRunButton(); poll();
+      } catch (e) { setStatus(e.message, "fail"); }
+    };
+
+    async function poll() {
+      try {
+        const r = await api(`/api/runs/${runId}?since=${since}`);
+        if (r.log.length) {
+          const log = $("log"), stick = log.scrollTop + log.clientHeight >= log.scrollHeight - 20;
+          log.textContent += r.log.join("\n") + "\n"; since = r.next;
+          if (stick) log.scrollTop = log.scrollHeight;
+        }
+        if (r.status === "running") { setStatus(`Running… ${r.elapsed}s`, "run"); return; }
+        clearInterval(timer); timer = null; updateRunButton();
+        const failed = r.results.filter(x => x.error).length;
+        setStatus(failed ? `Finished with ${failed} failure(s)` : "Done", failed ? "fail" : "done");
+        await loadReports();
+        const ok = r.results.find(x => x.file); if (ok) openReport(ok.file, ok.account);
+      } catch (e) { clearInterval(timer); timer = null; updateRunButton(); setStatus(e.message, "fail"); }
+    }
+
+    // ---- reports
+    function fmtDate(d) { return `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`; }
+    async function loadReports() {
+      const { reports } = await api("/api/reports");
+      const box = $("reports"); box.textContent = "";
+      if (!reports.length) { box.innerHTML = '<div class="empty">No reports yet.</div>'; return; }
+      reports.forEach(r => {
+        const a = document.createElement("a"); a.dataset.file = r.file;
+        const left = document.createElement("span"); left.textContent = "Account " + r.account;
+        const right = document.createElement("small"); right.textContent = fmtDate(r.date);
+        a.append(left, right); a.onclick = () => openReport(r.file, r.account); box.append(a);
+      });
+    }
+    function openReport(file, account) {
+      $("viewer-card").hidden = false; $("viewer-title").textContent = "Report: account " + account;
+      $("viewer").src = "/reports/" + encodeURIComponent(file);
+      document.querySelectorAll("#reports a").forEach(a => a.classList.toggle("on", a.dataset.file === file));
+    }
+
+    // ---- copilot chat
+    const SUGGESTIONS = ["What are the top savings opportunities?", "Why is MSK so expensive?",
+      "Which EC2 instances look underused?", "Which S3 buckets have no lifecycle rules?", "Are there stopped instances or unattached volumes?"];
+    let chatId = null, chatSince = 0, chatTimer = null, chatState = "none", pending = null;
+
+    function chatSet(state) {
+      chatState = state;
+      const ready = state === "idle" || state === "none";
+      $("chat-input").disabled = !ready; $("chat-send").disabled = !ready;
+      document.querySelectorAll(".chip").forEach(c => c.disabled = !ready);
+      $("chat-status").textContent = state === "busy" ? "Working…" : state === "starting" ? "Connecting…" : "";
+      $("chat-status").className = "status run";
+    }
+    function chatAppend(el) { const log = $("chat-log"); log.append(el); log.scrollTop = log.scrollHeight; }
+    function chatLine(text, cls) { const d = document.createElement("div"); d.className = "sys " + (cls || ""); d.textContent = text; chatAppend(d); }
+
+    function renderChips() {
+      const box = $("chips"); box.textContent = "";
+      SUGGESTIONS.forEach(q => {
+        const b = document.createElement("button"); b.type = "button"; b.className = "chip"; b.textContent = q;
+        b.onclick = () => sendChat(q); box.append(b);
+      });
+    }
+
+    async function closeChat() {
+      clearInterval(chatTimer); chatTimer = null;
+      if (chatId) { try { await fetch("/api/chats/" + chatId, { method: "DELETE" }); } catch (e) { } }
+      chatId = null; chatSince = 0; pending = null;
+    }
+    async function newChat() {
+      await closeChat();
+      $("chat-log").textContent = ""; chatLine("New chat. The first message connects to the selected profile.");
+      chatSet("none");
+    }
+    async function startChat() {
+      const { id } = await api("/api/chats", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profile: $("chat-profile").value, regions: $("regions").value.trim() || "auto" })
+      });
+      chatId = id; chatSince = 0; chatSet("starting");
+      chatTimer = setInterval(pollChat, 1000);
+    }
+    async function sendChat(text) {
+      text = text.trim(); if (!text || !(chatState === "idle" || chatState === "none")) return;
+      $("chat-input").value = "";
+      try {
+        if (!chatId) { pending = text; await startChat(); return; }   // sent once the chat reports idle
+        chatSet("busy"); await api(`/api/chats/${chatId}/messages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text })
+        });
+      } catch (e) { chatLine(e.message, "err"); chatSet(chatId ? "idle" : "none"); }
+    }
+    async function pollChat() {
+      if (!chatId) return;
+      try {
+        const r = await api(`/api/chats/${chatId}?since=${chatSince}`); chatSince = r.next;
+        for (const ev of r.events) {
+          if (ev.type === "user") { const d = document.createElement("div"); d.className = "bubble me"; d.textContent = ev.text; chatAppend(d); }
+          else if (ev.type === "text") { const d = document.createElement("div"); d.className = "bubble"; d.innerHTML = ev.html; chatAppend(d); }
+          else if (ev.type === "tool") chatLine("Checking: " + ev.text);
+          else if (ev.type === "ready") chatLine(ev.text);
+          else if (ev.type === "error") chatLine("Error: " + ev.text, "err");
+        }
+        if (r.status === "closed") { clearInterval(chatTimer); chatTimer = null; chatId = null; chatSet("none"); chatLine("Chat ended. Start a new one to continue.", "err"); return; }
+        chatSet(r.status);
+        if (r.status === "idle" && pending) {
+          const t = pending; pending = null; chatSet("busy");
+          await api(`/api/chats/${chatId}/messages`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: t }) });
+        }
+      } catch (e) { chatLine(e.message, "err"); }
+    }
+    $("chat-form").onsubmit = e => { e.preventDefault(); sendChat($("chat-input").value); };
+    $("chat-new").onclick = newChat;
+    $("chat-profile").onchange = newChat;
+    renderChips(); chatSet("none");
+
+    loadProfiles(); loadReports();
+  </script>
+</body>
+
+</html>

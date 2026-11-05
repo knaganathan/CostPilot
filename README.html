@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CostPilot Agent README</title>
+<style>
+:root { --bg:#fff; --fg:#1f2933; --muted:#52606d; --line:#d9e2ec; --head:#f0f4f8; --accent:#0b6bcb; --code:#f0f4f8; --warn:#fff3c4; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#111827; --fg:#e5e7eb; --muted:#9ca3af; --line:#374151; --head:#1f2937; --accent:#60a5fa; --code:#1f2937; --warn:#713f12; }
+}
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif; }
+main { max-width: 900px; margin: 0 auto; padding: 32px 16px 64px; }
+header { border-bottom: 2px solid var(--accent); margin-bottom: 20px; padding-bottom: 12px; }
+h1 { margin: 0 0 4px; font-size: 1.7rem; }
+header p { margin: 0; color: var(--muted); }
+h2 { font-size: 1.25rem; margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+nav { font-size: .92rem; color: var(--muted); }
+nav a { margin-right: 10px; white-space: nowrap; }
+.table-wrap { overflow-x: auto; margin: 10px 0; }
+table { border-collapse: collapse; width: 100%; font-size: .92rem; }
+th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; vertical-align: top; }
+th { background: var(--head); }
+code { background: var(--code); padding: 1px 5px; border-radius: 4px; font-size: .88em; }
+pre { background: var(--code); padding: 12px; border-radius: 6px; overflow-x: auto; margin: 10px 0; }
+pre code { padding: 0; background: none; }
+.note { border-left: 4px solid #d69e2e; background: var(--warn); padding: 8px 12px; margin: 12px 0; border-radius: 0 6px 6px 0; }
+li { margin: 3px 0; }
+</style></head>
+<body><main>
+
+<header>
+<h1>CostPilot Agent</h1>
+<p>Point it at an AWS profile; get a cost-optimization report for EC2, EBS, RDS, MSK and S3. Read-only.</p>
+</header>
+
+<nav>
+<a href="#prereqs">Prerequisites</a><a href="#start">Quick start</a><a href="#how">How it works</a><a href="#checks">What it checks</a>
+<a href="#iam">IAM</a><a href="#trouble">Troubleshooting</a><a href="#limits">Limitations</a><a href="#files">Files</a>
+</nav>
+
+<h2 id="prereqs">Prerequisites</h2>
+<div class="table-wrap"><table>
+<tr><th>You need</th><th>Check</th></tr>
+<tr><td><b>Python 3.10+</b></td><td><code>python --version</code></td></tr>
+<tr><td><b>Claude Code CLI</b>, signed in with your organization account. The agent runs on it, so no API key is needed.</td><td><code>claude --version</code></td></tr>
+<tr><td><b>AWS CLI v2</b> and a <b>profile for the target account</b> using a <b>read-only</b> identity (see <a href="#iam">IAM</a>). SSO profiles need a fresh login.</td><td><code>aws sts get-caller-identity --profile &lt;profile&gt;</code></td></tr>
+<tr><td><b>Cost Explorer enabled</b> in the account. Optional: Compute Optimizer opted in.</td><td>Billing console</td></tr>
+<tr><td>Resources at least <b>30 days old</b> to be judged (see <a href="#checks">What it checks</a>).</td><td></td></tr>
+<tr><td>Outbound HTTPS to AWS and Anthropic.</td><td></td></tr>
+</table></div>
+<div class="note"><b>Approval:</b> tool output (resource IDs, bucket names, spend, metrics) is sent to the model. Confirm this is allowed under Hyland's AI Use Requirements before running on a production or customer account.</div>
+
+<h2 id="start">Quick start</h2>
+<pre><code>pip install -r requirements.txt
+aws sso login --profile &lt;profile&gt;      # SSO profiles only</code></pre>
+
+<p><b>Web UI</b> (opens http://127.0.0.1:8000):</p>
+<pre><code>python ui_server.py</code></pre>
+<p><b>Analysis</b> tab: pick profiles, click <b>Run analysis</b>, watch progress, read the report on the page. <b>Copilot</b> tab: a read-only chat about one account (for example "Why is MSK so expensive?"). It answers from live read-only checks and refuses requests to change anything. Stop the server with <code>Ctrl+C</code>.</p>
+
+<p><b>Command line:</b></p>
+<pre><code>python agent.py --profile &lt;profile&gt;                  # one account
+python agent.py --profile dev staging prod           # several accounts, one after another
+python agent.py --profile &lt;profile&gt; --regions us-east-1,us-east-2</code></pre>
+<p>Options: <code>--regions</code> (default <code>auto</code>: regions with at least $10 of in-scope spend in 60 days), <code>--model</code> (override Claude Code's default), <code>--out-dir</code> (default <code>reports</code>).</p>
+
+<p><b>Output:</b> <code>reports/costpilot-&lt;account-id&gt;-&lt;date&gt;.html</code> and <code>.md</code>, one per account. A run takes a few minutes: the AWS checks take under a minute, the rest is Claude writing the report.</p>
+
+<h2 id="how">How it works</h2>
+<pre><code>agent.py / ui_server.py  &rarr;  Claude Code (model)  &rarr;  tools (tools.py)  &rarr;  boto3  &rarr;  AWS read-only APIs</code></pre>
+<ul>
+<li><b>Framework:</b> Claude Agent SDK. It starts your local Claude Code CLI and reuses its login and org policy.</li>
+<li><b>Tools:</b> 14 plain Python/boto3 functions, exposed to Claude as in-process MCP tools. Claude chooses which to call and writes the report; it never sees AWS credentials.</li>
+<li><b>Fixed scope:</b> the profile and regions are set when the tools are built. Claude Code's own Bash/Read/Write tools are disabled.</li>
+</ul>
+
+<h2 id="checks">What it checks</h2>
+<div class="table-wrap"><table>
+<tr><th>Area</th><th>Checks</th></tr>
+<tr><td>Spend</td><td>Cost by service (current vs previous 30 days) and by region and usage type</td></tr>
+<tr><td>EC2</td><td>30-day CPU and network, stopped instances, Compute Optimizer</td></tr>
+<tr><td>EBS</td><td>Unattached and gp2 volumes, 30-day IOPS on in-use volumes, old snapshots, Compute Optimizer</td></tr>
+<tr><td>RDS</td><td>30-day CPU, connections, free storage</td></tr>
+<tr><td>MSK</td><td>30-day broker CPU and disk (provisioned clusters)</td></tr>
+<tr><td>S3</td><td>30-day Standard size trend, lifecycle rules, versioning, multipart cleanup (all buckets)</td></tr>
+</table></div>
+<p><b>30-day rule:</b> a resource is only called idle or oversized if it is at least 30 days old and has about 30 daily CloudWatch datapoints. Anything else is reported as "Needs more data" and excluded from savings totals. Compute Optimizer findings (14-day lookback) are shown as unvalidated. Unattached volumes, gp2, snapshots and S3 configuration are point-in-time observations with no usage history, so the report says to confirm with the owner first.</p>
+
+<h2 id="iam">IAM (read-only)</h2>
+<pre><code>sts:GetCallerIdentity
+ce:GetCostAndUsage
+cloudwatch:GetMetricStatistics
+ec2:DescribeInstances, ec2:DescribeVolumes, ec2:DescribeSnapshots
+rds:DescribeDBInstances
+kafka:ListClustersV2, kafka:ListNodes
+s3:ListAllMyBuckets, s3:GetBucketLocation, s3:GetLifecycleConfiguration, s3:GetBucketVersioning
+compute-optimizer:GetEC2InstanceRecommendations, compute-optimizer:GetEBSVolumeRecommendations</code></pre>
+<p>A missing permission only affects that check; the report lists it under "Gaps". The code cannot verify that your identity is read-only, so use a read-only role.</p>
+
+<h2 id="trouble">Troubleshooting</h2>
+<div class="table-wrap"><table>
+<tr><th>Symptom</th><th>Fix</th></tr>
+<tr><td><code>ProfileNotFound</code></td><td>List profiles: <code>aws configure list-profiles</code></td></tr>
+<tr><td>Expired token / SSO error</td><td><code>aws sso login --profile &lt;profile&gt;</code></td></tr>
+<tr><td><code>AccessDenied</code> on one check</td><td>Add the permission from the IAM list, or an explicit deny applies. The run continues.</td></tr>
+<tr><td>Fails at start in <code>auto</code> regions</td><td>Cost Explorer is off. Enable it, or pass <code>--regions</code>.</td></tr>
+<tr><td><code>CLINotFoundError</code> or auth error</td><td>Install Claude Code, put <code>claude</code> on PATH, run <code>claude</code> once and sign in.</td></tr>
+<tr><td>Startup warnings about managed settings or blocked MCP servers</td><td>Your org's Claude Code policy. Harmless to this agent.</td></tr>
+<tr><td>UI: port 8000 in use</td><td>Another <code>ui_server.py</code> is running. Stop it, or set <code>COSTPILOT_PORT</code> to another port.</td></tr>
+<tr><td>Empty EC2/EBS but large EC2 spend</td><td>Resources are in an unscanned region or were deleted. Use <code>--regions</code>.</td></tr>
+</table></div>
+
+<h2 id="limits">Known limitations</h2>
+<ul>
+<li>Report wording varies between runs; the tool data underneath is deterministic.</li>
+<li>No EC2 memory metrics, so CPU alone does not prove an instance can shrink.</li>
+<li>Serverless MSK is not analyzed. S3 read frequency is not measured.</li>
+<li>EBS records creation time, not detach time. IOPS are daily averages.</li>
+<li>Regions under $10 of spend are skipped in <code>auto</code> mode; up to 100 resources per type per region are checked.</li>
+<li>Cost Optimization Hub support exists in <code>tools.py</code> but is switched off.</li>
+<li>The agent and Copilot only recommend. They make no changes to the account; Copilot answers a change request with what to check first.</li>
+<li>Copilot answers can take up to a minute while it runs checks; at most 3 chats are open at once.</li>
+</ul>
+
+<h2 id="files">Files</h2>
+<div class="table-wrap"><table>
+<tr><th>File</th><th>Purpose</th></tr>
+<tr><td><code>agent.py</code></td><td>CLI entry point and the analysis function the UI reuses</td></tr>
+<tr><td><code>ui_server.py</code>, <code>ui/index.html</code></td><td>Local web UI (localhost only, one analysis at a time). Port 8000, or set <code>COSTPILOT_PORT</code>.</td></tr>
+<tr><td><code>copilot.py</code></td><td>Read-only chat: multi-turn, same 14 tools, no write tools</td></tr>
+<tr><td><code>tools.py</code></td><td>The 14 boto3 tools and the 30-day validation</td></tr>
+<tr><td><code>agent_api.py</code></td><td>System prompt (used by both); also an API-key version of the agent that needs <code>ANTHROPIC_API_KEY</code></td></tr>
+<tr><td><code>render.py</code></td><td>Markdown to self-contained HTML</td></tr>
+<tr><td><code>reports/</code></td><td>Generated reports (contain account data; treat as internal)</td></tr>
+</table></div>
+
+</main></body></html>
